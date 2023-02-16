@@ -21,3 +21,4 @@ default = []
 anchor-lang     = {workspace = true, features = ["init-if-needed"]}
 anchor-spl      = {workspace = true, features = ["token", "metadata"]}
 solana-program  = {workspace = true}
+mpl-token-metadata = { version = "1.4.3", features = ["no-entrypoint"] }

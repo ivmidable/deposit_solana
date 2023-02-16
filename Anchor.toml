@@ -1,5 +1,5 @@
 [features]
-seeds = false
+seeds = true
 skip-lint = false
 [programs.localnet]
 deposit = "7YKyo13HtdB823RiWHacDR74wc7VeU8vkMZGJDP2nSUB"
@@ -13,3 +13,13 @@ wallet = "/home/ivmidable/.config/solana/id.json"
 
 [scripts]
 test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
+
+[test.validator]
+url = "https://api.devnet.solana.com"
+[test]
+startup_wait = 20000
+
+# Token Metadata program
+[[test.validator.clone]]
+address = "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
+

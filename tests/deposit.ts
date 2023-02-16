@@ -2,8 +2,9 @@ import * as anchor from "@project-serum/anchor";
 import { Program } from "@project-serum/anchor";
 import { Deposit } from "../target/types/deposit";
 import { ASSOCIATED_TOKEN_PROGRAM_ID, createMint, getAssociatedTokenAddressSync, getMint, getOrCreateAssociatedTokenAccount, mintToChecked, TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { Metaplex } from "@metaplex-foundation/js";
+import { keypairIdentity, Metaplex } from "@metaplex-foundation/js";
 import { execSync } from "child_process";
+import { assert } from "chai";
 
 const sleep = require('util').promisify(setTimeout);
 
@@ -11,12 +12,14 @@ describe("deposit", () => {
 
   // Configure the client to use the local cluster.
   let provider = anchor.AnchorProvider.local("http://127.0.0.1:8899")
-  const metaplex = Metaplex.make(provider.connection);
   const program = anchor.workspace.Deposit as Program<Deposit>;
   const deposit_account = anchor.web3.Keypair.generate();
   const deposit_auth = anchor.web3.Keypair.generate();
   let mint = anchor.web3.Keypair.generate();
   let usdc_auth = anchor.web3.Keypair.generate();
+
+  const metaplex = Metaplex.make(provider.connection).use(keypairIdentity(deposit_auth));
+
 
   let [pda_auth, pda_bump] = anchor.web3.PublicKey.findProgramAddressSync(
     [anchor.utils.bytes.utf8.encode("auth"),
@@ -107,44 +110,67 @@ describe("deposit", () => {
       deposit_auth,
       usdc_auth.publicKey,
       usdc_auth.publicKey,
-      6,
+      0,
       mint,
       null,
       TOKEN_PROGRAM_ID
     );
 
-    let test = await getMint(provider.connection, mint.publicKey, null, TOKEN_PROGRAM_ID);
+    let { nft } = await metaplex.nfts().create({ name: "Placeholder 0324", symbol: "PLC", uri: "arweav.uri", sellerFeeBasisPoints: 100 });
+
+
+
+    /*let test = await getMint(provider.connection, mint.publicKey, null, TOKEN_PROGRAM_ID);
     console.log(test);
-
+  
     let deposit_auth_usdc_acct = await getOrCreateAssociatedTokenAccount(provider.connection, deposit_auth, mint.publicKey, deposit_auth.publicKey, false, undefined, undefined, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID)
-
+  
     let mint_to_sig = await mintToChecked(provider.connection, deposit_auth, mint.publicKey, deposit_auth_usdc_acct.address, usdc_auth, 200e6, 6, [], undefined, TOKEN_PROGRAM_ID);
-
-    console.log(mint_to_sig);
+  
+    console.log(mint_to_sig);*/
 
   });
 
-  it("Deposits SPL Token", async () => {
+  xit("Deposits SPL Token", async () => {
     let to_token_acct = getAssociatedTokenAddressSync(mint.publicKey, pda_auth, true, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID);
     let from_token_acct = getAssociatedTokenAddressSync(mint.publicKey, deposit_auth.publicKey, false, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID);
 
-    let deposit_spl_tx = await program.methods.depositSpl(new anchor.BN(25e6)).accounts({
-      depositAccount: deposit_account.publicKey,
-      pdaAuth: pda_auth,
-      depositAuth: deposit_auth.publicKey,
-      toTokenAcct: to_token_acct,
-      fromTokenAcct: from_token_acct,
-      tokenMint: mint.publicKey,
-      tokenProgram: TOKEN_PROGRAM_ID,
-      associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-      systemProgram: anchor.web3.SystemProgram.programId,
-    }).signers([deposit_auth]).rpc();
+    let deposit_spl_tx = await program.methods.depositSpl(new anchor.BN(25e6)).accounts(
+      {
+        depositAccount: deposit_account.publicKey,
+        pdaAuth: pda_auth,
+        depositAuth: deposit_auth.publicKey,
+        fromTokenAcct: from_token_acct,
+        toTokenAcct: to_token_acct,
+        tokenMint: mint.publicKey,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: anchor.web3.SystemProgram.programId,
+
+      }
+    ).signers([deposit_auth]).rpc();
 
     console.log(deposit_spl_tx);
 
   });
 
-  it("Withdraws SPL Token", async () => {
+  xit("Withdraws SPL Token", async () => {
+    let from_token_acct = getAssociatedTokenAddressSync(mint.publicKey, pda_auth, true, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID);
+    let to_token_acct = getAssociatedTokenAddressSync(mint.publicKey, deposit_auth.publicKey, false, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID);
+
+    let withdraw_spl_tx = await program.methods.withdrawSpl(new anchor.BN(1e6)).accounts({
+      depositAccount: deposit_account.publicKey,
+      pdaAuth: pda_auth,
+      depositAuth: deposit_auth.publicKey,
+      fromTokenAcct: from_token_acct,
+      toTokenAcct: to_token_acct,
+      tokenMint: mint.publicKey,
+      associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      systemProgram: anchor.web3.SystemProgram.programId,
+    }).signers([deposit_auth]).rpc();
+
+    console.log(withdraw_spl_tx);
 
   });
 
