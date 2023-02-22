@@ -1,6 +1,7 @@
 use anchor_lang::{prelude::*, system_program};
 use anchor_spl::{
     associated_token::AssociatedToken,
+    dex::{self, cancel_order_v2, close_open_orders, new_order_v3, CancelOrderV2, Dex, NewOrderV3},
     metadata::{
         create_master_edition_v3, create_metadata_accounts_v3, CreateMasterEditionV3,
         CreateMetadataAccountsV3, MetadataAccount,
@@ -8,27 +9,20 @@ use anchor_spl::{
     token::{
         initialize_mint2, InitializeMint2, Mint, Token, TokenAccount, Transfer as SplTransfer,
     },
-    dex::{close_open_orders, self, NewOrderV3},
 };
 use std::num::NonZeroU64;
 
-use anchor_spl::dex::serum_dex::{matching::{Side, OrderType}, instruction::SelfTradeBehavior };
+use anchor_spl::dex::serum_dex::{
+    instruction::SelfTradeBehavior,
+    matching::{OrderType, Side},
+};
 
 use mpl_token_metadata::state::DataV2;
-
 
 declare_id!("7YKyo13HtdB823RiWHacDR74wc7VeU8vkMZGJDP2nSUB");
 
 #[program]
 pub mod deposit {
-
-
-
-    use std::num::NonZeroU64;
-
-    use anchor_spl::dex::{CancelOrderV2, serum_dex::instruction::cancel_order};
-    use solana_program::hash;
-
     use super::*;
 
     pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
@@ -99,7 +93,6 @@ pub mod deposit {
         Ok(())
     }
 
-
     pub fn withdraw_spl(ctx: Context<WithdrawSpl>, amount: u64) -> Result<()> {
         let deposit_account = &ctx.accounts.deposit_account;
 
@@ -128,39 +121,42 @@ pub mod deposit {
         Ok(())
     }
 
-
-    pub fn new_order(ctx: Context<NewOrder>, limit_price:NonZeroU64) -> Result<()> {
+    // want to create a limit order.
+    // casts NewOrder instruction to dex::NewOrderV3
+    pub fn new_order(ctx: Context<NewOrder>, limit_price: NonZeroU64) -> Result<()> {
         let dex_program = ctx.accounts.dex_program.to_account_info();
-
-        let side:anchor_spl::dex::serum_dex::matching::Side = Side::Ask;
-        let max_coin_qty = NonZeroU64::new(1000000000000000000).unwrap();
-        let max_native_pc_qty_including_fees= NonZeroU64::new(1000000000000000000).unwrap();
+        let side = Side::Ask;
+        let max_coin_qty = NonZeroU64::new(10000).unwrap();
+        let max_native_pc_qty_including_fees = NonZeroU64::new(10000).unwrap();
         let self_trade_behavior = SelfTradeBehavior::DecrementTake;
         let order_type = OrderType::Limit;
         let client_order_id = 0;
-        let limit = 100u16;
-       
-        /// CODING CHALLENGE:
-        /// get this to compile and you will have completed the create order.
-        let accounts: NewOrderV3<'static> = ctx.;
+        let limit = 0;
 
-        let cpi = CpiContext::new(dex_program,accounts.into());
+        let order:NewOrderV3 = ctx.accounts.into();
 
-        dex::new_order_v3(cpi, side, limit_price, max_coin_qty, max_native_pc_qty_including_fees, self_trade_behavior, order_type, client_order_id, limit)?;
-        
-        Ok(())
+        let cpi = CpiContext::new(dex_program, order);
+
+        new_order_v3(
+            cpi,
+            side,
+            limit_price,
+            max_coin_qty,
+            max_native_pc_qty_including_fees,
+            self_trade_behavior,
+            order_type,
+            client_order_id,
+            limit,
+        )
     }
 
-    /// CODING CHALLENGE: complete this instruction handler
-    /// pass in the variables needed to cancel and order, 
-    /// replace "......" with the correct variables
-    pub fn cancel_order(ctx: Context<CancelOrderV2>, ......) -> Result<()> {
+    // CODING CHALLENGE: complete this instruction handler
+    // pass in the variables needed to cancel and order,
+    // replace "......" with the correct variables
+     pub fn cancel_order(ctx: Context<CancelOrder>) -> Result<()> {
 
-        dex:cancel_order(program_id, market, market_bids, market_asks, open_orders_account, open_orders_account_owner, event_queue, side, order_id)
-
-        Ok(())
+        cancel_order_v2(program_id, market, market_bids, market_asks, open_orders_account, open_orders_account_owner, event_queue, side, order_id)
     }
-
 }
 
 #[derive(Accounts)]
@@ -249,41 +245,52 @@ pub struct WithdrawSpl<'info> {
     pub system_program: Program<'info, System>,
 }
 
-
 #[derive(Accounts)]
 pub struct NewOrder<'info> {
+    /// CHECK: no need to check this.
     pub market: AccountInfo<'info>,
+    /// CHECK: no need to check this.
     pub open_orders: AccountInfo<'info>,
+    /// CHECK: no need to check this.
     pub request_queue: AccountInfo<'info>,
+    /// CHECK: no need to check this.
     pub event_queue: AccountInfo<'info>,
+    /// CHECK: no need to check this.
     pub market_bids: AccountInfo<'info>,
+    /// CHECK: no need to check this.
     pub market_asks: AccountInfo<'info>,
     // Token account where funds are transferred from for the order. If
     // posting a bid market A/B, then this is the SPL token account for B.
+    /// CHECK: no need to check this.
     pub order_payer_token_account: AccountInfo<'info>,
+    /// CHECK: no need to check this.
     pub open_orders_authority: AccountInfo<'info>,
     // Also known as the "base" currency. For a given A/B market,
     // this is the vault for the A mint.
+    /// CHECK: no need to check this.
     pub coin_vault: AccountInfo<'info>,
     // Also known as the "quote" currency. For a given A/B market,
     // this is the vault for the B mint.
+    /// CHECK: no need to check this.
     pub pc_vault: AccountInfo<'info>,
+    /// CHECK: no need to check this.
     pub token_program: AccountInfo<'info>,
-    pub dex_program:AccountInfo<'info>,
+    /// CHECK: no need to check this.
     pub rent: AccountInfo<'info>,
+    pub dex_program: Program<'info, Dex>,
 }
 
-impl From <&mut NewOrder<'static>> for NewOrderV3<'static> {
-    fn from (new_order: &mut NewOrder<'static>) -> Self {
+impl<'info> From<&mut NewOrder<'info>> for NewOrderV3<'info> {
+    fn from(new_order: &mut NewOrder<'info>) -> Self {
         NewOrderV3 {
             market: new_order.market.clone(),
             open_orders: new_order.open_orders.clone(),
             request_queue: new_order.request_queue.clone(),
-            order_payer_token_account: new_order.order_payer_token_account.clone(),
-            open_orders_authority: new_order.open_orders_authority.clone(),
             event_queue: new_order.event_queue.clone(),
             market_bids: new_order.market_bids.clone(),
             market_asks: new_order.market_asks.clone(),
+            order_payer_token_account: new_order.order_payer_token_account.clone(),
+            open_orders_authority: new_order.open_orders_authority.clone(),
             coin_vault: new_order.coin_vault.clone(),
             pc_vault: new_order.pc_vault.clone(),
             token_program: new_order.token_program.clone(),
@@ -292,21 +299,11 @@ impl From <&mut NewOrder<'static>> for NewOrderV3<'static> {
     }
 }
 
+#[derive(Accounts)]
+pub struct RemoveLimit {}
 
 #[derive(Accounts)]
-pub struct UpdateLimit {
-
-}
-
-#[derive(Accounts)]
-pub struct RemoveLimit {
-
-}
-
-#[derive(Accounts)]
-pub struct AcceptLimit {
-
-}
+pub struct AcceptLimit {}
 
 #[derive(Accounts)]
 pub struct MintftAndCreateMetadata<'info> {

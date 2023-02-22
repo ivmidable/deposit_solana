@@ -3,6 +3,7 @@ cargo-features = ["workspace-inheritance"]
 [package]
 name = "deposit"
 version = "0.1.0"
+rust-version = "1.59"
 description = "Created with Anchor"
 edition = "2021"
 
@@ -22,4 +23,3 @@ anchor-lang     = {workspace = true, features = ["init-if-needed"]}
 anchor-spl      = {workspace = true, features = ["token", "metadata", "dex"]}
 solana-program  = {workspace = true}
 mpl-token-metadata = { version = "1.4.3", features = ["no-entrypoint"] }
-serum_dex = { workspace=true, features = ["no-entrypoint"] }
